@@ -1,12 +1,8 @@
 package com.binance.connector.futures.client.impl;
 
 import com.binance.connector.futures.client.WebsocketClient;
-import com.binance.connector.futures.client.utils.HttpClientSingleton;
-import com.binance.connector.futures.client.utils.RequestBuilder;
-import com.binance.connector.futures.client.utils.UrlBuilder;
-import com.binance.connector.futures.client.utils.WebSocketCallback;
-import com.binance.connector.futures.client.utils.WebSocketConnection;
-import com.binance.connector.futures.client.utils.ParameterChecker;
+import com.binance.connector.futures.client.utils.*;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -507,6 +503,49 @@ public abstract class WebsocketClientImpl implements WebsocketClient {
         Request request = RequestBuilder.buildWebsocketRequest(String.format("%s/ws/!forceOrder@arr", baseUrl));
         return createConnection(onOpenCallback, onMessageCallback, onClosingCallback, onFailureCallback, request);
     }
+    
+    /**
+     * 增强的全市场强平订单流（带重连和状态管理）
+     * 这是专门为解决断网重连问题而设计的API
+     * 
+     * @param enhancedListener 增强的事件监听器
+     * @return int - Connection ID
+     */
+    public int allForceOrderStreamEnhanced(EnhancedWebSocketListener enhancedListener) {
+        Request request = RequestBuilder.buildWebsocketRequest(String.format("%s/ws/!forceOrder@arr", baseUrl));
+        
+        // 使用空的原有回调保持兼容
+        return createEnhancedConnection(
+            msg -> {}, // onOpen
+            msg -> {}, // onMessage - 由enhancedListener处理
+            msg -> {}, // onClosing
+            msg -> {}, // onFailure
+            request,
+            enhancedListener
+        );
+    }
+    
+    /**
+     * 增强的全市场强平订单流（同时支持原有和新的回调）
+     * 
+     * @param onOpenCallback 原有连接打开回调
+     * @param onMessageCallback 原有消息回调
+     * @param onClosingCallback 原有连接关闭回调
+     * @param onFailureCallback 原有失败回调
+     * @param enhancedListener 增强的事件监听器
+     * @return int - Connection ID
+     */
+    public int allForceOrderStreamEnhanced(
+            WebSocketCallback onOpenCallback,
+            WebSocketCallback onMessageCallback,
+            WebSocketCallback onClosingCallback,
+            WebSocketCallback onFailureCallback,
+            EnhancedWebSocketListener enhancedListener
+    ) {
+        Request request = RequestBuilder.buildWebsocketRequest(String.format("%s/ws/!forceOrder@arr", baseUrl));
+        return createEnhancedConnection(
+            onOpenCallback, onMessageCallback, onClosingCallback, onFailureCallback, request, enhancedListener);
+    }
 
     /**
      * Top bids and asks, Valid are 5, 10, or 20.
@@ -697,13 +736,14 @@ public abstract class WebsocketClientImpl implements WebsocketClient {
             Iterator<Map.Entry<Integer, WebSocketConnection>> iter = connections.entrySet().iterator();
             while (iter.hasNext()) {
                 WebSocketConnection connection = iter.next().getValue();
-                connection.close();
+                connection.shutdown(); // 使用shutdown而不是close，确保资源清理
                 iter.remove();
             }
         }
 
         if (connections.isEmpty()) {
-            HttpClientSingleton.getHttpClient().dispatcher().executorService().shutdown();
+            // 注意：不再关闭全局HttpClient，因为每个连接现在都有独立的客户端
+            // HttpClientSingleton.getHttpClient().dispatcher().executorService().shutdown();
             logger.info("All connections are closed!");
         }
     }
@@ -716,6 +756,25 @@ public abstract class WebsocketClientImpl implements WebsocketClient {
             Request request
     ) {
         WebSocketConnection connection = new WebSocketConnection(onOpenCallback, onMessageCallback, onClosingCallback, onFailureCallback, request);
+        connection.connect();
+        int connectionId = connection.getConnectionId();
+        connections.put(connectionId, connection);
+        return connectionId;
+    }
+    
+    /**
+     * 创建增强的WebSocket连接（支持重连和状态管理）
+     */
+    public int createEnhancedConnection(
+            WebSocketCallback onOpenCallback,
+            WebSocketCallback onMessageCallback,
+            WebSocketCallback onClosingCallback,
+            WebSocketCallback onFailureCallback,
+            Request request,
+            EnhancedWebSocketListener enhancedListener
+    ) {
+        WebSocketConnection connection = new WebSocketConnection(
+            onOpenCallback, onMessageCallback, onClosingCallback, onFailureCallback, request, enhancedListener);
         connection.connect();
         int connectionId = connection.getConnectionId();
         connections.put(connectionId, connection);
