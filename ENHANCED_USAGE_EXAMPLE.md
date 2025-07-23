@@ -41,18 +41,163 @@ public interface EnhancedWebSocketListener {
 
 ## 💡 使用方式
 
-### 方式1：简单使用（推荐）
+### 方式1：全局自动重连（推荐⭐）
+
+**🎯 一键启用：所有WebSocket连接都自动重连**
+
+```java
+import com.binance.connector.futures.client.impl.UMWebsocketClientImpl;
+
+public class UniversalReconnectService {
+    
+    public void startAllStreams() {
+        // 创建客户端并启用全局自动重连
+        UMWebsocketClientImpl client = new UMWebsocketClientImpl()
+            .enableAutoReconnect(); // 🌟 所有连接都自动重连！
+        
+        // 现在所有WebSocket连接都具备自动重连能力
+        
+        // 1. 强平订单流 - 自动重连 ✅
+        int forceOrderId = client.allForceOrderStream(this::handleForceOrder);
+        
+        // 2. K线数据流 - 自动重连 ✅  
+        int klineId = client.klineStream("BTCUSDT", "1m", this::handleKline);
+        
+        // 3. 深度数据流 - 自动重连 ✅
+        int depthId = client.depthStream("BTCUSDT", 10, this::handleDepth);
+        
+        // 4. 标记价格流 - 自动重连 ✅
+        int markPriceId = client.allMarkPriceStream(3, this::handleMarkPrice);
+        
+        // 5. 用户数据流 - 自动重连 ✅
+        int userDataId = client.listenUserStream("your-listen-key", this::handleUserData);
+        
+        System.out.println("🚀 已启动多个数据流，全部支持自动重连！");
+        System.out.println("连接IDs: " + Arrays.asList(forceOrderId, klineId, depthId, markPriceId, userDataId));
+        
+        // 监控连接状态
+        startConnectionMonitor(client);
+    }
+    
+    private void startConnectionMonitor(UMWebsocketClientImpl client) {
+        Timer timer = new Timer();
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                System.out.println("📊 活跃连接数: " + client.getActiveConnectionCount());
+                System.out.println("🔄 连接状态: " + client.getAllConnectionStates());
+            }
+        }, 30000, 60000); // 30秒后开始，每分钟打印一次
+    }
+    
+    private void handleForceOrder(String message) {
+        System.out.println("💥 强平订单: " + message);
+    }
+    
+    private void handleKline(String message) {
+        System.out.println("📈 K线数据: " + message);
+    }
+    
+    private void handleDepth(String message) {
+        System.out.println("📊 深度数据: " + message);
+    }
+    
+    private void handleMarkPrice(String message) {
+        System.out.println("🏷️ 标记价格: " + message);
+    }
+    
+    private void handleUserData(String message) {
+        System.out.println("👤 用户数据: " + message);
+    }
+}
+```
+
+### 方式2：自定义重连监听器
+
+```java
+import com.binance.connector.futures.client.impl.UMWebsocketClientImpl;
+import com.binance.connector.futures.client.utils.EnhancedWebSocketListener;
+
+public class CustomReconnectService {
+    
+    public void startWithCustomListener() {
+        // 自定义重连事件监听器
+        EnhancedWebSocketListener customListener = new EnhancedWebSocketListener() {
+            @Override
+            public void onMessage(String message) {
+                // 消息由原有回调处理，这里可以留空
+            }
+
+            @Override
+            public void onConnected() {
+                System.out.println("🟢 WebSocket连接建立成功");
+                // 可以发送通知、更新UI状态等
+            }
+
+            @Override
+            public void onDisconnected(int code, String reason) {
+                System.out.println("🟡 WebSocket连接断开: " + code + " - " + reason);
+                // 可以记录日志、发送警报等
+            }
+
+            @Override
+            public void onError(Throwable error, String response) {
+                System.err.println("🔴 WebSocket连接错误: " + error.getMessage());
+                // 可以发送错误报告等
+            }
+
+            @Override
+            public void onReconnecting(int attempt) {
+                System.out.println("🔄 正在进行第" + attempt + "次重连尝试...");
+                // 可以更新重连状态、显示进度等
+            }
+
+            @Override
+            public void onReconnected(int attempt) {
+                System.out.println("✅ 重连成功！共尝试了" + attempt + "次");
+                // 可以发送成功通知、恢复业务逻辑等
+            }
+
+            @Override
+            public void onReconnectFailed(int maxAttempts) {
+                System.err.println("❌ 重连失败，已达到最大尝试次数: " + maxAttempts);
+                // 可以发送失败警报、切换到备用连接等
+            }
+
+            @Override
+            public void onConnectionStateChanged(ConnectionState newState) {
+                System.out.println("🔄 连接状态变更为: " + newState);
+                // 可以记录状态历史、更新监控面板等
+            }
+        };
+        
+        // 使用自定义监听器启用自动重连
+        UMWebsocketClientImpl client = new UMWebsocketClientImpl()
+            .enableAutoReconnect(customListener);
+        
+        // 所有连接都会使用自定义的重连监听器
+        client.allForceOrderStream(this::handleMessage);
+        client.klineStream("BTCUSDT", "1m", this::handleMessage);
+    }
+    
+    private void handleMessage(String message) {
+        System.out.println("收到消息: " + message);
+    }
+}
+```
+
+### 方式3：专用客户端（兼容旧版）
 
 ```java
 import com.binance.connector.futures.client.utils.ReliableForceOrderClient;
 
-public class ForceOrderService {
+public class ForceOrderSpecializedService {
     
     public void startMonitoring() {
-        // 创建可靠的强平订单客户端
+        // 创建专门的强平订单客户端（向下兼容）
         ReliableForceOrderClient client = new ReliableForceOrderClient(
             this::handleForceOrderMessage,  // 消息处理
-            this::handleConnectionStatus    // 连接状态变化（可选）
+            this::handleConnectionStatus    // 连接状态变化
         );
         
         // 启动监听
@@ -69,17 +214,10 @@ public class ForceOrderService {
     }
     
     private void handleForceOrderMessage(String message) {
-        // 处理强平订单消息
         System.out.println("收到强平订单: " + message);
-        
-        // 解析和保存数据
-        // ...
     }
     
     private void handleConnectionStatus(String status) {
-        System.out.println("连接状态变化: " + status);
-        
-        // 可以根据状态做相应处理
         if (status.equals("CONNECTED")) {
             System.out.println("✅ 强平订单流已连接");
         } else if (status.startsWith("RECONNECTING")) {
@@ -91,7 +229,7 @@ public class ForceOrderService {
 }
 ```
 
-### 方式2：完全控制（高级用户）
+### 方式4：完全控制（高级用户）
 
 ```java
 import com.binance.connector.futures.client.impl.UMWebsocketClientImpl;

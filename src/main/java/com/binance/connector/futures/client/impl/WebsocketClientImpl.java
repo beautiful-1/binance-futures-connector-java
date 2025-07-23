@@ -21,6 +21,11 @@ import org.slf4j.LoggerFactory;
  * section of the API documentation will be implemented in this class.
  * <br>
  * Response will be returned as callback.
+ * 
+ * <h3>增强功能</h3>
+ * - 全局自动重连开关：所有WebSocket连接都支持自动重连
+ * - 向后兼容：原有API保持不变
+ * - 智能重连：指数退避策略，自动异常识别
  */
 public abstract class WebsocketClientImpl implements WebsocketClient {
     private final String baseUrl;
@@ -28,9 +33,147 @@ public abstract class WebsocketClientImpl implements WebsocketClient {
     private final WebSocketCallback noopCallback = msg -> {
     };
     private static final Logger logger = LoggerFactory.getLogger(WebsocketClientImpl.class);
+    
+    // 全局自动重连配置
+    private volatile boolean autoReconnectEnabled = false;
+    private EnhancedWebSocketListener defaultReconnectListener;
 
     public WebsocketClientImpl(String baseUrl) {
         this.baseUrl = baseUrl;
+        // 初始化默认的重连监听器
+        this.defaultReconnectListener = new EnhancedWebSocketListener() {
+            @Override
+            public void onMessage(String message) {
+                // 默认不处理消息，由原有回调处理
+            }
+
+            @Override
+            public void onConnected() {
+                logger.info("[AutoReconnect] WebSocket connected successfully");
+            }
+
+            @Override
+            public void onDisconnected(int code, String reason) {
+                logger.warn("[AutoReconnect] WebSocket disconnected: {} - {}", code, reason);
+            }
+
+            @Override
+            public void onError(Throwable error, String response) {
+                logger.error("[AutoReconnect] WebSocket error: {}", error.getMessage(), error);
+            }
+
+            @Override
+            public void onReconnecting(int attempt) {
+                logger.info("[AutoReconnect] Attempting to reconnect (attempt {})", attempt);
+            }
+
+            @Override
+            public void onReconnected(int attempt) {
+                logger.info("[AutoReconnect] Reconnected successfully after {} attempts", attempt);
+            }
+
+            @Override
+            public void onReconnectFailed(int maxAttempts) {
+                logger.error("[AutoReconnect] Failed to reconnect after {} attempts", maxAttempts);
+            }
+
+            @Override
+            public void onConnectionStateChanged(ConnectionState newState) {
+                logger.debug("[AutoReconnect] Connection state changed to: {}", newState);
+            }
+        };
+    }
+    
+    /**
+     * 启用全局自动重连功能
+     * 启用后，所有新建的WebSocket连接都会自动具备重连能力
+     * 
+     * @return this - 支持链式调用
+     */
+    public WebsocketClientImpl enableAutoReconnect() {
+        this.autoReconnectEnabled = true;
+        logger.info("Auto-reconnect feature enabled for all WebSocket connections");
+        return this;
+    }
+    
+    /**
+     * 启用全局自动重连功能（使用自定义监听器）
+     * 
+     * @param customListener 自定义的重连事件监听器
+     * @return this - 支持链式调用
+     */
+    public WebsocketClientImpl enableAutoReconnect(EnhancedWebSocketListener customListener) {
+        this.autoReconnectEnabled = true;
+        this.defaultReconnectListener = customListener;
+        logger.info("Auto-reconnect feature enabled with custom listener");
+        return this;
+    }
+    
+    /**
+     * 禁用全局自动重连功能
+     * 禁用后，新建的WebSocket连接将使用传统的连接方式
+     * 
+     * @return this - 支持链式调用
+     */
+    public WebsocketClientImpl disableAutoReconnect() {
+        this.autoReconnectEnabled = false;
+        logger.info("Auto-reconnect feature disabled");
+        return this;
+    }
+    
+    /**
+     * 检查自动重连功能是否已启用
+     * 
+     * @return true if auto-reconnect is enabled
+     */
+    public boolean isAutoReconnectEnabled() {
+        return autoReconnectEnabled;
+    }
+    
+    /**
+     * 获取当前活跃的连接数量
+     * 
+     * @return 活跃连接数
+     */
+    public int getActiveConnectionCount() {
+        return connections.size();
+    }
+    
+     /**
+     * 获取所有连接的状态信息
+     * 
+     * @return 连接状态映射
+     */
+    public Map<Integer, String> getAllConnectionStates() {
+        Map<Integer, String> states = new HashMap<>();
+        for (Map.Entry<Integer, WebSocketConnection> entry : connections.entrySet()) {
+            WebSocketConnection connection = entry.getValue();
+            states.put(entry.getKey(), connection.getConnectionState().toString());
+        }
+        return states;
+    }
+    
+    /**
+     * 手动触发指定连接的重连
+     * 
+     * @param connectionId 连接ID
+     * @return true if reconnect was triggered successfully
+     */
+    public boolean triggerReconnect(int connectionId) {
+        WebSocketConnection connection = connections.get(connectionId);
+        if (connection != null) {
+            try {
+                connection.reconnect();
+                logger.info("Manual reconnect triggered for connection {}", connectionId);
+                return true;
+            } catch (Exception e) {
+                logger.error("Failed to trigger reconnect for connection {}", connectionId, e);
+                return false;
+            }
+        } else {
+            logger.warn("Connection {} not found, cannot trigger reconnect", connectionId);
+            return false;
+        }
     }
 
     public WebSocketCallback getNoopCallback() {
@@ -755,7 +898,20 @@ public abstract class WebsocketClientImpl implements WebsocketClient {
             WebSocketCallback onFailureCallback,
             Request request
     ) {
-        WebSocketConnection connection = new WebSocketConnection(onOpenCallback, onMessageCallback, onClosingCallback, onFailureCallback, request);
+        WebSocketConnection connection;
+        
+        if (autoReconnectEnabled) {
+            // 使用增强连接（支持自动重连）
+            logger.debug("Creating enhanced WebSocket connection with auto-reconnect for: {}", request.url());
+            connection = new WebSocketConnection(
+                onOpenCallback, onMessageCallback, onClosingCallback, onFailureCallback, 
+                request, defaultReconnectListener);
+        } else {
+            // 使用传统连接（向后兼容）
+            logger.debug("Creating traditional WebSocket connection for: {}", request.url());
+            connection = new WebSocketConnection(onOpenCallback, onMessageCallback, onClosingCallback, onFailureCallback, request);
+        }
+        
         connection.connect();
         int connectionId = connection.getConnectionId();
         connections.put(connectionId, connection);
