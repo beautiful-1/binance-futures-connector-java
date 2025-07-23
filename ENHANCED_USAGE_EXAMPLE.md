@@ -219,6 +219,8 @@ private static final long CONNECTION_TIMEOUT = 600000;      // 连接超时(10�
 
 ### 1. 编译增强版SDK
 
+#### Windows环境
+
 ```bash
 # 切换到SDK目录
 cd C:\project\binance-futures-connector-java
@@ -234,7 +236,42 @@ mvn clean compile -Dcheckstyle.skip=true -Dgpg.skip=true
 mvn test "-Dcheckstyle.skip=true" "-Dgpg.skip=true"
 ```
 
+#### Ubuntu/Linux环境
+
+```bash
+# 切换到SDK目录（假设项目在用户主目录下）
+cd ~/binance-futures-connector-java
+
+# 或者如果是在WSL中访问Windows项目
+cd /mnt/c/project/binance-futures-connector-java
+
+# 清理并编译（跳过代码检查和GPG签名）
+mvn clean compile -Dcheckstyle.skip=true -Dgpg.skip=true
+
+# 运行测试验证功能正常
+mvn test -Dcheckstyle.skip=true -Dgpg.skip=true
+
+# 检查Java和Maven版本（确保环境正确）
+java -version
+mvn -version
+```
+
+#### macOS环境
+
+```bash
+# 切换到SDK目录
+cd ~/binance-futures-connector-java
+
+# 清理并编译（跳过代码检查和GPG签名）
+mvn clean compile -Dcheckstyle.skip=true -Dgpg.skip=true
+
+# 运行测试验证功能正常
+mvn test -Dcheckstyle.skip=true -Dgpg.skip=true
+```
+
 ### 2. 安装到本地Maven仓库
+
+#### Windows环境
 
 ```bash
 # 安装增强版SDK到本地仓库
@@ -249,9 +286,38 @@ Get-ChildItem "$env:USERPROFILE\.m2\repository\io\github\binance\binance-futures
 
 # 验证安装成功（Windows cmd）
 dir "%USERPROFILE%\.m2\repository\io\github\binance\binance-futures-connector-java\3.0.6-enhanced-reconnect\"
+```
 
-# 验证安装成功（Linux/Mac/Git Bash）
+#### Ubuntu/Linux环境
+
+```bash
+# 安装增强版SDK到本地仓库
+mvn clean install -Dcheckstyle.skip=true -Dgpg.skip=true
+
+# 验证安装成功
 ls ~/.m2/repository/io/github/binance/binance-futures-connector-java/3.0.6-enhanced-reconnect/
+
+# 检查安装的文件详情
+ls -la ~/.m2/repository/io/github/binance/binance-futures-connector-java/3.0.6-enhanced-reconnect/
+
+# 如果遇到权限问题，可能需要调整.m2目录权限
+sudo chown -R $USER:$USER ~/.m2/
+
+# 清理Maven缓存（如果需要）
+mvn dependency:purge-local-repository -DmanualInclude="io.github.binance:binance-futures-connector-java"
+```
+
+#### macOS环境
+
+```bash
+# 安装增强版SDK到本地仓库
+mvn clean install -Dcheckstyle.skip=true -Dgpg.skip=true
+
+# 验证安装成功
+ls ~/.m2/repository/io/github/binance/binance-futures-connector-java/3.0.6-enhanced-reconnect/
+
+# 检查安装的文件详情
+ls -la ~/.m2/repository/io/github/binance/binance-futures-connector-java/3.0.6-enhanced-reconnect/
 ```
 
 **安装成功后会看到以下文件:**
@@ -304,8 +370,34 @@ binance-futures-connector-java-3.0.6-enhanced-reconnect-javadoc.jar
 ### 4. 验证增强版功能
 
 #### 编译验证
+
+**Windows环境:**
 ```bash
 # 在使用增强版SDK的项目目录中
+cd C:\project\my-red-alert\kline-system
+mvn clean compile
+
+# 确认编译成功，没有依赖冲突
+```
+
+**Ubuntu/Linux环境:**
+```bash
+# 在使用增强版SDK的项目目录中（本地项目）
+cd ~/my-red-alert/kline-system
+mvn clean compile
+
+# 或者在WSL中访问Windows项目
+cd /mnt/c/project/my-red-alert/kline-system
+mvn clean compile
+
+# 确认编译成功，没有依赖冲突
+echo "编译状态: $?"  # 0表示成功
+```
+
+**macOS环境:**
+```bash
+# 在使用增强版SDK的项目目录中
+cd ~/my-red-alert/kline-system
 mvn clean compile
 
 # 确认编译成功，没有依赖冲突
@@ -362,26 +454,103 @@ mvn clean install -Dcheckstyle.skip=true -Dgpg.skip=true
 
 #### 问题5：依赖冲突
 ```bash
-# 清理本地仓库中的旧版本（Windows）
+# 清理本地仓库中的旧版本（Windows cmd）
 rmdir /s /q "%USERPROFILE%\.m2\repository\io\github\binance\binance-futures-connector-java\3.0.5"
 
-# 清理本地仓库中的旧版本（Linux/Mac）
+# 清理本地仓库中的旧版本（Windows PowerShell）
+Remove-Item -Recurse -Force "$env:USERPROFILE\.m2\repository\io\github\binance\binance-futures-connector-java\3.0.5"
+
+# 清理本地仓库中的旧版本（Ubuntu/Linux/macOS）
 rm -rf ~/.m2/repository/io/github/binance/binance-futures-connector-java/3.0.5/
 
-# 重新安装增强版
+# 重新安装增强版（Windows PowerShell）
 mvn clean install "-Dcheckstyle.skip=true" "-Dgpg.skip=true"
+
+# 重新安装增强版（Ubuntu/Linux/macOS）
+mvn clean install -Dcheckstyle.skip=true -Dgpg.skip=true
 ```
 
-### 6. 版本管理建议
+#### 问题6：Ubuntu/Linux环境特有问题
+
+```bash
+# 问题：Java版本不兼容
+# 解决方案：检查和切换Java版本
+java -version
+update-alternatives --list java
+sudo update-alternatives --config java
+
+# 问题：Maven未安装或版本过低
+# 解决方案：安装/更新Maven
+sudo apt update
+sudo apt install maven
+
+# 检查Maven版本（要求3.6+）
+mvn -version
+
+# 问题：权限不足
+# 解决方案：修复.m2目录权限
+sudo chown -R $USER:$USER ~/.m2/
+chmod -R 755 ~/.m2/
+
+# 问题：网络连接问题（中国大陆用户）
+# 解决方案：配置Maven镜像
+mkdir -p ~/.m2
+cat > ~/.m2/settings.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+  <mirrors>
+    <mirror>
+      <id>aliyun</id>
+      <name>Aliyun Maven</name>
+      <url>https://maven.aliyun.com/repository/public</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>
+EOF
+
+# 问题：WSL中文件系统权限问题
+# 解决方案：在WSL中操作Windows项目时
+cd /mnt/c/project/binance-futures-connector-java
+# 确保有执行权限
+chmod +x mvnw
+# 使用Maven Wrapper
+./mvnw clean install -Dcheckstyle.skip=true -Dgpg.skip=true
+```
+
+### 6. 环境特定注意事项
+
+#### Windows环境
+- **PowerShell**: 记得给 `-D` 参数加引号 `"-Dcheckstyle.skip=true"`
+- **路径分隔符**: 使用反斜杠 `\` 或正斜杠 `/` 都可以
+- **权限**: 通常不需要特殊权限设置
+
+#### Ubuntu/Linux环境  
+- **包管理**: 使用 `apt` 安装Java和Maven依赖
+- **权限**: 注意 `.m2` 目录的权限设置
+- **网络**: 大陆用户建议配置阿里云Maven镜像
+- **WSL支持**: 可通过 `/mnt/c/` 访问Windows项目
+
+#### macOS环境
+- **包管理**: 可使用 `brew` 安装Java和Maven
+- **路径**: 使用Unix风格路径 `~/`
+- **权限**: 类似Linux，注意用户权限
+
+### 7. 版本管理建议
 
 #### 开发环境
 - 使用增强版本 `3.0.6-enhanced-reconnect`
 - 享受自动重连和稳定性改进
+- **Windows**: 适合开发调试
+- **Ubuntu**: 适合容器化部署测试
+- **macOS**: 适合本地开发环境
 
 #### 生产环境
 - 充分测试后再部署增强版本
 - 监控连接状态和重连统计
 - 建议保留原版本作为回退选项
+- **Linux服务器**: 推荐的生产环境
+- **Docker容器**: 轻量化部署方案
 
 #### 版本升级路径
 ```bash
@@ -393,6 +562,41 @@ mvn clean install "-Dcheckstyle.skip=true" "-Dgpg.skip=true"
 
 # 3. 未来官方版本 (可能整合改进)
 3.0.7+ (官方发布时考虑升级)
+```
+
+### 8. 跨平台部署建议
+
+#### 开发流程
+```bash
+# 1. Windows开发环境编译
+mvn clean install "-Dcheckstyle.skip=true" "-Dgpg.skip=true"
+
+# 2. Linux服务器部署
+scp -r target/ user@server:/opt/app/
+ssh user@server "cd /opt/app && mvn clean install -Dcheckstyle.skip=true -Dgpg.skip=true"
+
+# 3. Docker容器化
+docker build -t binance-sdk:3.0.6-enhanced .
+docker run -d binance-sdk:3.0.6-enhanced
+```
+
+#### CI/CD集成
+```yaml
+# GitHub Actions示例
+name: Build Enhanced SDK
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 8
+      uses: actions/setup-java@v2
+      with:
+        java-version: '8'
+        distribution: 'adopt'
+    - name: Build with Maven
+      run: mvn clean install -Dcheckstyle.skip=true -Dgpg.skip=true
 ```
 
 ## 🔗 相关类
